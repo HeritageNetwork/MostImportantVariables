@@ -10,14 +10,16 @@ library(RSQLite)
 library(randomForest)
 
 # First, change to the directory
-setwd("E:/SDM/Aquatic2/outputs") # set to the SDM output directory
+setwd("path/to/outputs") # set to the SDM output directory
 # Second, define an empty SQLlite db
-databasename <- "E:/SDM/Shared/MostImportantVariables/MostImportantVar_Aquatic.sqlite" # this should be an empty sqlite database, script will create and populate the table
+databasename <- "path/to/MostImportantVar_Aquatic.sqlite" # this should be an empty sqlite database, script will create and populate the table
 # Third, set an output name for png file for the boxplots, this will be saved in the working directory
-boxfile <- "PA_aquatic" # .png will be appended by script
+boxfile <- "VA_aquatic" # .png will be appended by script
+# Fourth, set the boxplot main title
+main_title <- "Aquatic SDM Environmental Variable Rankings - Virginia" 
 
 #get a list of what's in the directory
-d <- dir(pattern="Rdata", recursive=TRUE, include.dirs=TRUE)  # modified to deal with storing Rdata in species specific subfolders
+d <- dir(pattern="Rdata$", recursive=TRUE, include.dirs=TRUE)  # modified to deal with storing Rdata in species specific subfolders
 
 #loop through everything in the dir
 for (i in 1:length(d)){
@@ -55,9 +57,11 @@ for (i in 1:length(d)){
 db <- dbConnect(SQLite(), dbname = databasename)
 #write importance values
 ###importance <- sqlQuery(channel = Cn.MDB.out, query = "SELECT * FROM tblImportance")
-SQLquery_imp <- paste("SELECT * FROM tblImportance")
+SQLquery_imp <- paste("SELECT * FROM tblImportance JOIN 
+                      (SELECT varFullName, count(*) ct from tblImportance group by varFullName) using (varFullName)")
 importance  <- dbGetQuery(db, statement=SQLquery_imp )
 dbDisconnect(db) #close connection
+importance$varFullName <- paste0(importance$varFullName, " (", importance$ct, ")")
 
 ##means <- sqlQuery(channel = Cn.MDB.out, query = "select * from qryAverageImportance")
 means <- aggregate(importance$impRank ,by=list(varFullName=importance$varFullName),FUN=mean)
@@ -71,17 +75,20 @@ sampSize <- table(importance$varCode)
 
 png(filename=paste(boxfile,"_boxplot.png",sep=""), width=10, height=10, units='in', res=600)
 boxplot(impRank ~ varFullName, data=importance,
-        # xlab = "Importance Rank",   
-        # ylab = "Environmental Variable",
         boxfill="white", notch=FALSE,
+        main = paste0(main_title, " (",length(unique(importance$Species)), " species models)"),
+        cex.main = 1.5,
         horizontal = TRUE,
         show.names = TRUE,      
         las=2,                  #make the category names horizontal
         par(
-          mar=c(1,1,1,1), #increase margins on the left
+          mar=c(4,10,1,1), # increase margins on the left
+          mgp=c(3,0.6,0),    # set axes margins (axes titles, tick mark labels, tick marks)
           ps=6,                 #font point size
           pin=c(5,9)            #plot dimensions width,height (might need to resize window manually, or use (5,6)
         )
 )
+mtext("Importance Rank", 1,padj = 4, cex = 1.2)
+mtext("Environmental Variable (# of times used)", 2 ,padj = -20, cex = 1.2)
 dev.off()
 
